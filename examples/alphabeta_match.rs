@@ -7,11 +7,11 @@ fn main() {
 
     // Load the alpha-beta plugin
     let plugin_path = if cfg!(target_os = "linux") {
-        "plugins/alphabeta_bot_plugin/target/debug/libalphabeta_bot_plugin.so"
+        "plugins/alphabeta_bot_plugin/target/release/libalphabeta_bot_plugin.so"
     } else if cfg!(target_os = "macos") {
-        "plugins/alphabeta_bot_plugin/target/debug/libalphabeta_bot_plugin.dylib"
+        "plugins/alphabeta_bot_plugin/target/release/libalphabeta_bot_plugin.dylib"
     } else if cfg!(target_os = "windows") {
-        "plugins/alphabeta_bot_plugin/target/debug/alphabeta_bot_plugin.dll"
+        "plugins/alphabeta_bot_plugin/target/release/alphabeta_bot_plugin.dll"
     } else {
         panic!("Unsupported platform");
     };
@@ -31,11 +31,11 @@ fn main() {
 
     // Load the greedy bot for comparison
     let greedy_path = if cfg!(target_os = "linux") {
-        "plugins/greedy_bot_plugin/target/debug/libgreedy_bot_plugin.so"
+        "plugins/greedy_bot_plugin/target/release/libgreedy_bot_plugin.so"
     } else if cfg!(target_os = "macos") {
-        "plugins/greedy_bot_plugin/target/debug/libgreedy_bot_plugin.dylib"
+        "plugins/greedy_bot_plugin/target/release/libgreedy_bot_plugin.dylib"
     } else if cfg!(target_os = "windows") {
-        "plugins/greedy_bot_plugin/target/debug/greedy_bot_plugin.dll"
+        "plugins/greedy_bot_plugin/target/release/greedy_bot_plugin.dll"
     } else {
         panic!("Unsupported platform");
     };
