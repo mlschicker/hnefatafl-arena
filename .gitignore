@@ -1,0 +1,61 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock for libraries (keep for binaries)
+# Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Plugin source code (HIDE FROM STUDENTS)
+plugins/*/src/
+plugins/*/Cargo.toml
+plugins/*/Cargo.lock
+
+# Main arena target directory (ignore all)
+target/
+
+# Plugin build artifacts (except final binaries)
+plugins/*/target/debug/deps/
+plugins/*/target/debug/build/
+plugins/*/target/debug/incremental/
+plugins/*/target/debug/examples/
+plugins/*/target/debug/*.d
+plugins/*/target/debug/*.rlib
+
+plugins/*/target/release/deps/
+plugins/*/target/release/build/
+plugins/*/target/release/incremental/
+plugins/*/target/release/examples/
+plugins/*/target/release/*.d
+plugins/*/target/release/*.rlib
+
+# KEEP: Plugin binaries (distribute these!)
+# These lines explicitly allow the compiled libraries
+!plugins/*/target/debug/*.so
+!plugins/*/target/debug/*.dll
+!plugins/*/target/debug/*.dylib
+!plugins/*/target/release/*.so
+!plugins/*/target/release/*.dll
+!plugins/*/target/release/*.dylib
+
+# Documentation that should be kept
+!README.md
+!PLUGIN_GUIDE.md
+!QUICK_START.md
+!API_REFERENCE.md
+!TOURNAMENT.md
+!PROJECT_SUMMARY.md
+!PLUGIN_SYSTEM_SUMMARY.md
+!BRANDUBH.md
+!VARIANT_IMPLEMENTATION.md
