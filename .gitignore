@@ -22,26 +22,11 @@ plugins/*/src/
 plugins/*/Cargo.toml
 plugins/*/Cargo.lock
 
-# Main arena target directory (ignore all)
-target/
+# Plugin build directories (ignore everything in target/)
+plugins/*/target/
 
-# Plugin build artifacts (except final binaries)
-plugins/*/target/debug/deps/
-plugins/*/target/debug/build/
-plugins/*/target/debug/incremental/
-plugins/*/target/debug/examples/
-plugins/*/target/debug/*.d
-plugins/*/target/debug/*.rlib
-
-plugins/*/target/release/deps/
-plugins/*/target/release/build/
-plugins/*/target/release/incremental/
-plugins/*/target/release/examples/
-plugins/*/target/release/*.d
-plugins/*/target/release/*.rlib
-
-# KEEP: Plugin binaries (distribute these!)
-# These lines explicitly allow the compiled libraries
+# KEEP: Plugin binaries only (distribute these!)
+# Explicitly un-ignore the compiled shared libraries
 !plugins/*/target/debug/*.so
 !plugins/*/target/debug/*.dll
 !plugins/*/target/debug/*.dylib

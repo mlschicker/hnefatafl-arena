@@ -11,11 +11,11 @@ echo ""
 
 # Check if a plugin name was provided
 if [ -z "$1" ]; then
-    echo "Usage: ./build_plugin.sh <plugin_name> [--release]"
+    echo "Usage: ./build_plugin.sh <plugin_name> [--debug]"
     echo ""
     echo "Examples:"
     echo "  ./build_plugin.sh greedy_bot_plugin"
-    echo "  ./build_plugin.sh my_bot --release"
+    echo "  ./build_plugin.sh my_bot --debug"
     echo ""
     echo "Available plugins:"
     ls -1 plugins/ 2>/dev/null | grep -v "^$" || echo "  (none found)"
@@ -23,12 +23,12 @@ if [ -z "$1" ]; then
 fi
 
 PLUGIN_NAME=$1
-RELEASE_FLAG=""
-BUILD_TYPE="debug"
+RELEASE_FLAG="--release"
+BUILD_TYPE="release"
 
-if [ "$2" == "--release" ]; then
-    RELEASE_FLAG="--release"
-    BUILD_TYPE="release"
+if [ "$2" == "--debug" ]; then
+    RELEASE_FLAG=""
+    BUILD_TYPE="debug"
 fi
 
 PLUGIN_DIR="plugins/$PLUGIN_NAME"
