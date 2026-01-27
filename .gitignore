@@ -22,8 +22,9 @@ plugins/*/src/
 plugins/*/Cargo.toml
 plugins/*/Cargo.lock
 
-# Plugin build directories (ignore everything in target/)
-plugins/*/target/
+# Plugin build artifacts - ignore all files but allow directories
+plugins/*/target/**/*
+!plugins/*/target/**/
 
 # KEEP: Plugin binaries only (distribute these!)
 # Explicitly un-ignore the compiled shared libraries
