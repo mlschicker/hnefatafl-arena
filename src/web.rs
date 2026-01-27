@@ -11,11 +11,13 @@ use tower_http::services::ServeDir;
 
 use crate::bot::{Bot, GreedyBot, RandomBot};
 use crate::game::{GameState, Move, Piece, Player, Position, Variant};
+use crate::plugin::PluginBot;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum BotType {
     Greedy,
     Random,
+    Plugin(String), // Plugin path
 }
 
 #[derive(Clone)]
@@ -23,11 +25,11 @@ pub struct AppState {
     game: Arc<Mutex<WebGame>>,
 }
 
-#[derive(Clone)]
 struct WebGame {
     state: GameState,
     player_side: Player,
     bot_type: BotType,
+    bot_instance: Option<Box<dyn Bot>>,
     game_over: bool,
     winner: Option<Player>,
 }
@@ -72,6 +74,7 @@ impl AppState {
             state: GameState::new(Variant::Brandubh),
             player_side: Player::Defenders,
             bot_type: BotType::Greedy,
+            bot_instance: None,
             game_over: false,
             winner: None,
         };
@@ -114,17 +117,23 @@ fn string_to_variant(s: &str) -> Variant {
 }
 
 fn create_bot(bot_type: &str) -> BotType {
-    match bot_type.to_lowercase().as_str() {
-        "greedy" => BotType::Greedy,
-        "random" => BotType::Random,
-        _ => BotType::Greedy,
+    if bot_type.starts_with("plugin:") {
+        let path = bot_type.strip_prefix("plugin:").unwrap().to_string();
+        BotType::Plugin(path)
+    } else {
+        match bot_type.to_lowercase().as_str() {
+            "greedy" => BotType::Greedy,
+            "random" => BotType::Random,
+            _ => BotType::Greedy,
+        }
     }
 }
 
-fn get_bot_instance(bot_type: BotType) -> Box<dyn Bot> {
+fn get_bot_instance(bot_type: &BotType) -> Result<Box<dyn Bot>, String> {
     match bot_type {
-        BotType::Greedy => Box::new(GreedyBot::new("Greedy Bot".to_string())),
-        BotType::Random => Box::new(RandomBot::new("Random Bot".to_string())),
+        BotType::Greedy => Ok(Box::new(GreedyBot::new("Greedy Bot".to_string()))),
+        BotType::Random => Ok(Box::new(RandomBot::new("Random Bot".to_string()))),
+        BotType::Plugin(path) => PluginBot::load(path).map(|bot| Box::new(bot) as Box<dyn Bot>),
     }
 }
 
@@ -138,26 +147,44 @@ async fn new_game(State(app_state): State<AppState>, Json(req): Json<NewGameRequ
         let mut game = app_state.game.lock().unwrap();
         game.state = GameState::new(variant);
         game.player_side = player_side;
-        game.bot_type = bot_type;
+        game.bot_type = bot_type.clone();
         game.game_over = false;
         game.winner = None;
 
-        // If bot goes first, make its move
-        if game.state.current_player() != player_side {
-            let state_clone = game.state.clone();
-            let mut bot = get_bot_instance(bot_type);
-            if let Some(bot_move) = bot.get_move(&state_clone, std::time::Duration::from_secs(5)) {
-                let _ = game.state.make_move(bot_move);
-                if let Some(_result) = game.state.result() {
-                    game.game_over = true;
-                    game.winner = Some(game.state.current_player().opponent());
-                }
-                format!("Bot played: {} -> {}", bot_move.from, bot_move.to)
-            } else {
-                "Bot failed to make a move".to_string()
+        // Create and initialize the bot
+        match get_bot_instance(&bot_type) {
+            Ok(mut bot) => {
+                // Initialize the bot with game_start
+                let bot_side = player_side.opponent();
+                bot.game_start(bot_side);
+
+                // If bot goes first, make its move
+                let message = if game.state.current_player() != player_side {
+                    let state_clone = game.state.clone();
+                    if let Some(bot_move) =
+                        bot.get_move(&state_clone, std::time::Duration::from_secs(5))
+                    {
+                        let _ = game.state.make_move(bot_move);
+                        bot.notify_move(bot_move);
+                        if let Some(_result) = game.state.result() {
+                            game.game_over = true;
+                            game.winner = Some(game.state.current_player().opponent());
+                        }
+                        format!("Bot played: {} -> {}", bot_move.from, bot_move.to)
+                    } else {
+                        "Bot failed to make a move".to_string()
+                    }
+                } else {
+                    "Your turn!".to_string()
+                };
+
+                game.bot_instance = Some(bot);
+                message
             }
-        } else {
-            "Your turn!".to_string()
+            Err(e) => {
+                game.bot_instance = None;
+                format!("Failed to load bot: {}", e)
+            }
         }
     }; // MutexGuard dropped here
 
@@ -224,20 +251,36 @@ async fn make_move(State(app_state): State<AppState>, Json(req): Json<MoveReques
 
         // Bot's turn
         if !game.game_over {
-            let state_clone = game.state.clone();
-            let bot_type = game.bot_type;
-            drop(game); // Drop before calling bot
+            // Notify bot of player's move
+            if let Some(ref mut bot) = game.bot_instance {
+                bot.notify_move(player_move);
+            }
 
-            let mut bot = get_bot_instance(bot_type);
-            if let Some(bot_move) = bot.get_move(&state_clone, std::time::Duration::from_secs(5)) {
-                // Re-lock to apply bot move
-                let mut game = app_state.game.lock().unwrap();
+            let state_clone = game.state.clone();
+
+            // Get the bot's move (separate borrow scope)
+            let bot_move_opt = if let Some(ref mut bot) = game.bot_instance {
+                bot.get_move(&state_clone, std::time::Duration::from_secs(5))
+            } else {
+                None
+            };
+
+            // Now apply the move and update game state
+            if let Some(bot_move) = bot_move_opt {
                 let _ = game.state.make_move(bot_move);
+
+                // Notify bot of its own move
+                if let Some(ref mut bot) = game.bot_instance {
+                    bot.notify_move(bot_move);
+                }
+
                 if let Some(_result) = game.state.result() {
                     game.game_over = true;
                     game.winner = Some(game.state.current_player().opponent());
                 }
                 format!("Bot played: {} -> {}", bot_move.from, bot_move.to)
+            } else if game.bot_instance.is_none() {
+                "Bot instance not found".to_string()
             } else {
                 "Bot failed to make a move".to_string()
             }
@@ -290,6 +333,67 @@ async fn get_game_state(State(app_state): State<AppState>) -> Json<GameResponse>
     })
 }
 
+#[derive(Serialize)]
+struct PluginInfo {
+    id: String,
+    name: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct AvailableBotsResponse {
+    built_in: Vec<String>,
+    plugins: Vec<PluginInfo>,
+}
+
+async fn list_bots() -> Json<AvailableBotsResponse> {
+    use std::fs;
+
+    let mut plugins = Vec::new();
+
+    // Scan for plugin libraries in the plugins directory
+    if let Ok(entries) = fs::read_dir("plugins") {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                let plugin_name = entry.file_name().to_string_lossy().to_string();
+
+                // Check for both debug and release builds
+                for build_type in ["debug", "release"] {
+                    #[cfg(target_os = "linux")]
+                    let lib_path = format!(
+                        "plugins/{}/target/{}/lib{}.so",
+                        plugin_name, build_type, plugin_name
+                    );
+                    #[cfg(target_os = "macos")]
+                    let lib_path = format!(
+                        "plugins/{}/target/{}/lib{}.dylib",
+                        plugin_name, build_type, plugin_name
+                    );
+                    #[cfg(target_os = "windows")]
+                    let lib_path = format!(
+                        "plugins/{}\\target\\{}\\{}.dll",
+                        plugin_name, build_type, plugin_name
+                    );
+
+                    if std::path::Path::new(&lib_path).exists() {
+                        plugins.push(PluginInfo {
+                            id: format!("plugin:{}", lib_path),
+                            name: plugin_name.replace("_", " ").replace("-", " "),
+                            path: lib_path,
+                        });
+                        break; // Found one, don't check other build types
+                    }
+                }
+            }
+        }
+    }
+
+    Json(AvailableBotsResponse {
+        built_in: vec!["Greedy".to_string(), "Random".to_string()],
+        plugins,
+    })
+}
+
 pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState::new();
 
@@ -297,6 +401,7 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/new-game", post(new_game))
         .route("/api/move", post(make_move))
         .route("/api/game-state", get(get_game_state))
+        .route("/api/bots", get(list_bots))
         .nest_service("/", ServeDir::new("static"))
         .with_state(app_state);
 

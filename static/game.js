@@ -9,7 +9,43 @@ const API_BASE = '/api';
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('newGameBtn').addEventListener('click', startNewGame);
     document.getElementById('backToSetup').addEventListener('click', showSetup);
+    loadAvailableBots();
 });
+
+async function loadAvailableBots() {
+    try {
+        const response = await fetch(`${API_BASE}/bots`);
+        const data = await response.json();
+
+        const botSelect = document.getElementById('botType');
+        botSelect.innerHTML = ''; // Clear existing options
+
+        // Add built-in bots
+        data.built_in.forEach(bot => {
+            const option = document.createElement('option');
+            option.value = bot.toLowerCase();
+            option.textContent = `${bot} Bot`;
+            botSelect.appendChild(option);
+        });
+
+        // Add plugin bots
+        if (data.plugins && data.plugins.length > 0) {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──── Plugin Bots ────';
+            botSelect.appendChild(separator);
+
+            data.plugins.forEach(plugin => {
+                const option = document.createElement('option');
+                option.value = plugin.id;
+                option.textContent = plugin.name;
+                botSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading bots:', error);
+    }
+}
 
 function showSetup() {
     document.getElementById('setupPanel').style.display = 'block';
