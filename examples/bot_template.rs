@@ -83,12 +83,12 @@ impl Bot for MyBot {
     /// - None if there are no legal moves (you lose)
     /// 
     /// Tips:
-    /// - Use state.legal_moves() to get all possible moves
+    /// - Use state.legal_moves(state.current_player()) to get all possible moves
     /// - Use state.current_player() to know if you're attackers or defenders
     /// - Use state.get_piece(position) to check what's on a square
     /// - You can clone the state to try out moves without affecting the real game
     fn get_move(&mut self, state: &GameState, time_limit: Duration) -> Option<Move> {
-        let moves = state.legal_moves();
+        let moves = state.legal_moves(state.current_player());
         
         if moves.is_empty() {
             return None;

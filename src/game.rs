@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
 
+use crate::game;
+
 /// Board size constants
 pub const COPENHAGEN_SIZE: usize = 11;
 pub const BRANDUBH_SIZE: usize = 7;
@@ -300,7 +302,7 @@ impl GameState {
     }
 
     /// Get all legal moves for the current player
-    pub fn legal_moves(&self) -> Vec<Move> {
+    pub fn legal_moves(&self, player: Player) -> Vec<Move> {
         if self.is_game_over() {
             return Vec::new();
         }
@@ -311,7 +313,7 @@ impl GameState {
             for col in 0..self.board_size {
                 let pos = Position::new(row, col);
                 if let Some(piece) = self.get_piece(pos) {
-                    if self.piece_belongs_to_current_player(piece) {
+                    if self.piece_belongs_to_player(piece, player) {
                         moves.extend(self.legal_moves_for_piece(pos));
                     }
                 }
@@ -321,8 +323,8 @@ impl GameState {
         moves
     }
 
-    fn piece_belongs_to_current_player(&self, piece: Piece) -> bool {
-        match (piece, self.current_player) {
+    fn piece_belongs_to_player(&self, piece: Piece, player: Player) -> bool {
+        match (piece, player) {
             (Piece::Attacker, Player::Attackers) => true,
             (Piece::Defender | Piece::King, Player::Defenders) => true,
             _ => false,
@@ -376,7 +378,7 @@ impl GameState {
         }
 
         // Validate the move
-        if !self.legal_moves().contains(&mv) {
+        if !self.legal_moves(self.current_player).contains(&mv) {
             return Err(GameError::InvalidMove(format!("Move {} is not legal", mv)));
         }
 
@@ -655,6 +657,18 @@ impl GameState {
             self.result = Some(GameResult::AttackersWin);
             return;
         }
+
+        // check that opposite party has legal moves
+        let opponent = self.current_player.opponent();
+        if self.legal_moves(opponent).len() == 0 {
+            // No legal moves for opponent - current player wins
+            match opponent {
+                Player::Attackers => self.result = Some(GameResult::DefendersWin),
+                Player::Defenders => self.result = Some(GameResult::AttackersWin),
+            }
+            return;
+        }
+
 
         // Check for draw (no legal moves)
         // This will be checked after switching player
@@ -1234,7 +1248,7 @@ mod tests {
         assert_eq!(game.current_player(), Player::Attackers);
 
         // Make a move
-        let moves = game.legal_moves();
+        let moves = game.legal_moves(game.current_player());
         if let Some(mv) = moves.first() {
             game.make_move(*mv).unwrap();
             assert_eq!(game.current_player(), Player::Defenders);
@@ -1432,11 +1446,11 @@ mod tests {
 
         assert_eq!(game.move_count(), 0);
 
-        let moves = game.legal_moves();
+        let moves = game.legal_moves(game.current_player());
         game.make_move(moves[0]).unwrap();
         assert_eq!(game.move_count(), 1);
 
-        let moves = game.legal_moves();
+        let moves = game.legal_moves(game.current_player());
         game.make_move(moves[0]).unwrap();
         assert_eq!(game.move_count(), 2);
     }
@@ -1554,6 +1568,59 @@ mod tests {
             game.get_piece(Position::new(4, 4)),
             None,
             "King should be captured when move completes the sandwich"
+        );
+    }
+
+    #[test]
+    fn test_win_when_opponent_has_no_moves() {
+        let mut game = create_test_board();
+        clear_board(&mut game);
+
+        // Set up a scenario where defenders will have no legal moves after attackers move
+        // Place king in a position where it can be completely surrounded
+        // King at (1,1) with limited movement options
+        set_piece(&mut game, Position::new(1, 1), Some(Piece::King));
+        
+        // Place attackers to block most directions
+        set_piece(&mut game, Position::new(0, 1), Some(Piece::Attacker)); // Above
+        set_piece(&mut game, Position::new(1, 0), Some(Piece::Attacker)); // Left
+        set_piece(&mut game, Position::new(2, 1), Some(Piece::Attacker)); // Below
+        
+        // Place an attacker that will move to block the last direction (right)
+        set_piece(&mut game, Position::new(1, 3), Some(Piece::Attacker));
+        
+        game.current_player = Player::Attackers;
+        
+        // Verify defenders (king) currently have at least one legal move
+        let defender_moves_before = game.legal_moves(Player::Defenders);
+        assert!(
+            !defender_moves_before.is_empty(),
+            "Defenders should have legal moves before the blocking move"
+        );
+        
+        // Move attacker to (1,2) to block the king's last escape route
+        game.make_move(Move::new(Position::new(1, 3), Position::new(1, 2)))
+            .unwrap();
+        
+        // After the move, it should be defenders' turn
+        assert_eq!(game.current_player(), Player::Defenders);
+        
+        // Verify defenders have no legal moves
+        let defender_moves_after = game.legal_moves(Player::Defenders);
+        assert!(
+            defender_moves_after.is_empty(),
+            "Defenders should have no legal moves after being blocked"
+        );
+        
+        // The game should be over with attackers winning
+        assert!(
+            game.is_game_over(),
+            "Game should be over when opponent has no moves"
+        );
+        assert_eq!(
+            game.result(),
+            Some(&GameResult::AttackersWin),
+            "Attackers should win when defenders have no moves"
         );
     }
 }

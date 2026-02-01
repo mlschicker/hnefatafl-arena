@@ -152,7 +152,7 @@ impl Match {
                 self.state.move_count() + 1,
                 bot.name()
             );
-            println!("Legal moves: {}", self.state.legal_moves().len());
+            println!("Legal moves: {}", self.state.legal_moves(self.state.current_player()).len());
         }
 
         // Get move from bot with time limit

@@ -309,7 +309,7 @@ async fn get_game_state(State(app_state): State<AppState>) -> Json<GameResponse>
     let legal_moves: Vec<MoveResponse> =
         if !game.game_over && game.state.current_player() == game.player_side {
             game.state
-                .legal_moves()
+                .legal_moves(game.state.current_player())
                 .iter()
                 .map(|m| MoveResponse {
                     from_row: m.from.row,

@@ -62,7 +62,7 @@ impl Bot for GreedyBotPlugin {
     }
 
     fn get_move(&mut self, state: &GameState, _time_limit: Duration) -> Option<Move> {
-        let moves = state.legal_moves();
+        let moves = state.legal_moves(state.current_player());
         if moves.is_empty() {
             return None;
         }
