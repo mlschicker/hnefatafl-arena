@@ -364,7 +364,7 @@ impl GameState {
 
                 // Only king can move to throne or corners
                 if piece != Piece::King && (self.is_throne(to) || self.is_corner(to)) {
-                    break;
+                    continue;
                 }
 
                 moves.push(Move::new(from, to));
@@ -859,6 +859,40 @@ mod tests {
 
         // Should not include throne
         assert!(!moves.contains(&Move::new(Position::new(2, 3), Position::new(3, 3))));
+    }
+
+    #[test]
+    fn test_pieces_can_move_over_empty_throne() {
+        let mut game = create_test_board();
+        clear_board(&mut game);
+
+        // Place attacker on same row as throne, with empty throne at (3,3)
+        set_piece(&mut game, Position::new(3, 0), Some(Piece::Attacker));
+
+        let moves = game.legal_moves_for_piece(Position::new(3, 0));
+
+        // Attacker cannot move onto throne
+        assert!(!moves.contains(&Move::new(Position::new(3, 0), Position::new(3, 3))));
+
+        // But should be able to move over it to squares beyond
+        assert!(moves.contains(&Move::new(Position::new(3, 0), Position::new(3, 4))));
+        assert!(moves.contains(&Move::new(Position::new(3, 0), Position::new(3, 5))));
+        assert!(moves.contains(&Move::new(Position::new(3, 0), Position::new(3, 6))));
+    }
+
+    #[test]
+    fn test_king_can_enter_throne() {
+        let mut game = create_test_board();
+        clear_board(&mut game);
+
+        // Place king next to throne
+        set_piece(&mut game, Position::new(2, 3), Some(Piece::King));
+        game.current_player = Player::Defenders;
+
+        let moves = game.legal_moves_for_piece(Position::new(2, 3));
+
+        // King should be able to move onto throne
+        assert!(moves.contains(&Move::new(Position::new(2, 3), Position::new(3, 3))));
     }
 
     #[test]
